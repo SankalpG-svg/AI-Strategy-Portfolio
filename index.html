@@ -191,7 +191,7 @@
             const strategy = document.getElementById('strategy-ttt').value;
             const status = document.getElementById('status-ttt');
             try {
-                const res = await fetch('http://localhost:8000/get_ttt_move', {
+                const res = await fetch('https://your-railway-url.app/get_ttt_move', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ board: tttBoard, ai_letter: aiLetter, strategy: strategy })
                 });
@@ -271,7 +271,7 @@
             const strategy = document.getElementById('strategy-c4').value;
             const status = document.getElementById('status-c4');
             try {
-                const res = await fetch('http://localhost:8000/get_c4_move', {
+                const res = await fetch('https://your-railway-url.app/get_c4_move', {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ board: c4Board, ai_letter: aiLetter, strategy: strategy })
                 });
