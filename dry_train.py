@@ -66,7 +66,7 @@ else:
 env.rl_model = model
 
 print("Beginning pure self-play learning...")
-model.learn(total_timesteps=1000000, callback=checkpoint_callback, reset_num_timesteps=False)
+model.learn(total_timesteps=100, callback=checkpoint_callback)
 
 print("Saving the true spatial master model...")
 model.save("custom_connect4_cnn")

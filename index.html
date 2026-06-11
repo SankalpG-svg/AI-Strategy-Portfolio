@@ -68,11 +68,11 @@
 
         /* Tokens */
         .token { animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; }
-        .token-ttt-p { width: 60%; height: 60%; background: #00f2fe; border-radius: 12px; box-shadow: 0 0 20px #00f2fe; }
-        .token-ttt-a { width: 65%; height: 65%; background: #fe0979; border-radius: 50%; box-shadow: 0 0 20px #fe0979; }
+        .token-ttt-x { width: 60%; height: 60%; background: #00f2fe; border-radius: 12px; box-shadow: 0 0 20px #00f2fe; }
+        .token-ttt-o { width: 65%; height: 65%; background: #fe0979; border-radius: 50%; box-shadow: 0 0 20px #fe0979; }
         .token-c4 { width: 90%; height: 90%; border-radius: 50%; animation: dropIn 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards; position: absolute; }
-        .token-c4-p { background: #00f2fe; box-shadow: 0 0 15px #00f2fe; }
-        .token-c4-a { background: #fe0979; box-shadow: 0 0 15px #fe0979; }
+        .token-c4-x { background: #00f2fe; box-shadow: 0 0 15px #00f2fe; }
+        .token-c4-o { background: #fe0979; box-shadow: 0 0 15px #fe0979; }
 
         @keyframes popIn { 0% { transform: scale(0); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
         @keyframes dropIn { 0% { transform: translateY(-300px); opacity: 0.5; } 100% { transform: translateY(0); opacity: 1; } }
@@ -99,7 +99,11 @@
             <h1>Algorithm Duel: Tic-Tac-Toe</h1>
             <div class="controls">
                 <button class="back-btn" onclick="showView('menu')">← Back</button>
-                <select id="strategy-ttt">
+                <select id="color-ttt" onchange="resetTTT()">
+                    <option value="X">Play as Cyan (Goes First)</option>
+                    <option value="O">Play as Magenta (Goes Second)</option>
+                </select>
+                <select id="strategy-ttt" onchange="resetTTT()">
                     <option value="minimax">Unbeatable (Minimax Engine)</option>
                     <option value="sankalp_2">Custom Heuristic AI</option>
                     <option value="random">Random Mover</option>
@@ -114,7 +118,11 @@
             <h1>Algorithm Duel: Connect Four</h1>
             <div class="controls">
                 <button class="back-btn" onclick="showView('menu')">← Back</button>
-                <select id="strategy-c4">
+                <select id="color-c4" onchange="resetC4()">
+                    <option value="X">Play as Cyan (Goes First)</option>
+                    <option value="O">Play as Magenta (Goes Second)</option>
+                </select>
+                <select id="strategy-c4" onchange="resetC4()">
                     <option value="THE FINAL BOSS CNN">THE FINAL BOSS CNN</option>
                     <option value="RL">Reinforcement Learning</option>
                     <option value="alphabeta">Unbeatable (Alpha-Beta Pruning)</option>
@@ -131,8 +139,13 @@
 
     <script>
         // GLOBAL STATE
-        const playerLetter = 'X';
-        const aiLetter = 'O';
+        let playerLetterTTT = 'X';
+        let aiLetterTTT = 'O';
+        let isAITurnTTT = false;
+
+        let playerLetterC4 = 'X';
+        let aiLetterC4 = 'O';
+        let isAITurnC4 = false;
 
         // --- NAVIGATION ---
         function showView(viewName) {
@@ -163,10 +176,10 @@
             const cells = document.querySelectorAll('.cell-ttt');
             for (let i = 0; i < 9; i++) {
                 cells[i].innerHTML = ''; 
-                if (tttBoard[i] === playerLetter) {
-                    cells[i].innerHTML = '<div class="token token-ttt-p"></div>';
-                } else if (tttBoard[i] === aiLetter) {
-                    cells[i].innerHTML = '<div class="token token-ttt-a"></div>';
+                if (tttBoard[i] === 'X') {
+                    cells[i].innerHTML = '<div class="token token-ttt-x"></div>';
+                } else if (tttBoard[i] === 'O') {
+                    cells[i].innerHTML = '<div class="token token-ttt-o"></div>';
                 }
             }
         }
@@ -177,16 +190,18 @@
         }
 
         async function makeTTTMove(index) {
-            if (tttBoard[index] !== ' ' || tttGameOver) return;
-            tttBoard[index] = playerLetter;
+            if (tttBoard[index] !== ' ' || tttGameOver || isAITurnTTT) return;
+            tttBoard[index] = playerLetterTTT;
             updateTTTUI();
             
             const status = document.getElementById('status-ttt');
-            if (checkTTTWin(tttBoard, playerLetter)) { status.innerText = "You Win!"; status.style.color = "#00f2fe"; tttGameOver = true; return; }
+            if (checkTTTWin(tttBoard, playerLetterTTT)) { status.innerText = "You Win!"; status.style.color = "#00f2fe"; tttGameOver = true; return; }
             if (!tttBoard.includes(' ')) { status.innerText = "Draw!"; tttGameOver = true; return; }
 
             status.innerText = "AI is computing..."; status.style.color = "#fff";
+            isAITurnTTT = true;
             await getTTTAIMove();
+            isAITurnTTT = false;
         }
 
         async function getTTTAIMove() {
@@ -196,24 +211,39 @@
                 const res = await fetch('/get_ttt_move', {
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ board: tttBoard, ai_letter: aiLetter, strategy: strategy })
+                    body: JSON.stringify({ board: tttBoard, ai_letter: aiLetterTTT, strategy: strategy })
                 });
-                                const data = await res.json();
-                tttBoard[data.move] = aiLetter;
+                const data = await res.json();
+                tttBoard[data.move] = aiLetterTTT;
                 updateTTTUI();
 
-                if (checkTTTWin(tttBoard, aiLetter)) { status.innerText = "AI Wins."; status.style.color = "#fe0979"; tttGameOver = true; return; }
+                if (checkTTTWin(tttBoard, aiLetterTTT)) { status.innerText = "AI Wins."; status.style.color = "#fe0979"; tttGameOver = true; return; }
                 if (!tttBoard.includes(' ')) { status.innerText = "Draw!"; tttGameOver = true; return; }
-                status.innerText = "Your Turn (Cyan)";
+                status.innerText = "Your Turn";
             } catch (e) { status.innerText = "Backend Error."; status.style.color = "red"; }
         }
 
         function resetTTT() {
             tttBoard = Array(9).fill(' ');
             tttGameOver = false;
-            document.getElementById('status-ttt').innerText = "Your Turn (Cyan)";
+            
+            const colorSelect = document.getElementById('color-ttt');
+            if(colorSelect) {
+                playerLetterTTT = colorSelect.value;
+                aiLetterTTT = playerLetterTTT === 'X' ? 'O' : 'X';
+            }
+            
+            document.getElementById('status-ttt').innerText = "Your Turn";
             document.getElementById('status-ttt').style.color = "#fff";
             initTTT();
+            
+            if (aiLetterTTT === 'X') {
+                isAITurnTTT = true;
+                document.getElementById('status-ttt').innerText = "AI is computing...";
+                getTTTAIMove().then(() => { isAITurnTTT = false; });
+            } else {
+                isAITurnTTT = false;
+            }
         }
 
         // --- CONNECT FOUR LOGIC ---
@@ -242,7 +272,7 @@
         function renderC4Token(row, col, letter) {
             const cell = document.getElementById(`c4-${row}-${col}`);
             const token = document.createElement('div');
-            token.className = `token-c4 ${letter === playerLetter ? 'token-c4-p' : 'token-c4-a'}`;
+            token.className = `token-c4 ${letter === 'X' ? 'token-c4-x' : 'token-c4-o'}`;
             cell.appendChild(token);
         }
 
@@ -255,19 +285,21 @@
         }
 
         async function makeC4Move(col) {
-            if (c4GameOver) return;
+            if (c4GameOver || isAITurnC4) return;
             let row = getC4Row(col);
             if (row === -1) return; 
             
-            c4Board[row][col] = playerLetter;
-            renderC4Token(row, col, playerLetter);
+            c4Board[row][col] = playerLetterC4;
+            renderC4Token(row, col, playerLetterC4);
             
             const status = document.getElementById('status-c4');
-            if (checkC4Win(c4Board, playerLetter)) { status.innerText = "You Win!"; status.style.color = "#00f2fe"; c4GameOver = true; return; }
+            if (checkC4Win(c4Board, playerLetterC4)) { status.innerText = "You Win!"; status.style.color = "#00f2fe"; c4GameOver = true; return; }
             if (c4Board[0].every(c => c !== ' ')) { status.innerText = "Draw!"; c4GameOver = true; return; }
 
             status.innerText = "AI Engine is computing..."; status.style.color = "#fff";
+            isAITurnC4 = true;
             await getC4AIMove();
+            isAITurnC4 = false;
         }
 
         async function getC4AIMove() {
@@ -277,32 +309,47 @@
                 const res = await fetch('/get_c4_move', {
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ board: c4Board, ai_letter: aiLetter, strategy: strategy })
+                    body: JSON.stringify({ board: c4Board, ai_letter: aiLetterC4, strategy: strategy })
                 });
                 const data = await res.json();
                 let aiCol = data.move;
                 let aiRow = getC4Row(aiCol);
                 
-                c4Board[aiRow][aiCol] = aiLetter;
-                renderC4Token(aiRow, aiCol, aiLetter);
+                c4Board[aiRow][aiCol] = aiLetterC4;
+                renderC4Token(aiRow, aiCol, aiLetterC4);
 
-                if (checkC4Win(c4Board, aiLetter)) { status.innerText = "AI Wins."; status.style.color = "#fe0979"; c4GameOver = true; return; }
+                if (checkC4Win(c4Board, aiLetterC4)) { status.innerText = "AI Wins."; status.style.color = "#fe0979"; c4GameOver = true; return; }
                 if (c4Board[0].every(c => c !== ' ')) { status.innerText = "Draw!"; c4GameOver = true; return; }
-                status.innerText = "Your Turn (Drop a token)";
+                status.innerText = "Your Turn";
             } catch (e) { status.innerText = "Backend Error."; status.style.color = "red"; }
         }
 
         function resetC4() {
             c4Board = Array(6).fill().map(() => Array(7).fill(' '));
             c4GameOver = false;
-            document.getElementById('status-c4').innerText = "Your Turn (Drop a token)";
+            
+            const colorSelect = document.getElementById('color-c4');
+            if(colorSelect) {
+                playerLetterC4 = colorSelect.value;
+                aiLetterC4 = playerLetterC4 === 'X' ? 'O' : 'X';
+            }
+            
+            document.getElementById('status-c4').innerText = "Your Turn";
             document.getElementById('status-c4').style.color = "#fff";
             initC4();
+            
+            if (aiLetterC4 === 'X') {
+                isAITurnC4 = true;
+                document.getElementById('status-c4').innerText = "AI is computing...";
+                getC4AIMove().then(() => { isAITurnC4 = false; });
+            } else {
+                isAITurnC4 = false;
+            }
         }
 
         // Initialize empty boards in background
-        initTTT();
-        initC4();
+        resetTTT();
+        resetC4();
     </script>
 </body>
 </html>

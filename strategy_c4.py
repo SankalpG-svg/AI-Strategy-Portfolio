@@ -115,118 +115,68 @@ class Strategy:
                 print("Invalid input. Enter a number between 0 and 6.")
 
     @staticmethod
-    def get_board_id(board):
-        board_str = ''.join([''.join(row) for row in board])
-        return hashlib.md5(board_str.encode()).hexdigest()
-    
-    score = dict()
+    def best_move(game, letter, depth, alpha, beta, maximizing_player):
+        if game.current_winner == letter:
+            return 1
+        elif game.current_winner == ('O' if letter == 'X' else 'X'):
+            return -1
+        elif not game.available_moves() or depth == 0:
+            return 0
 
-    @staticmethod
-    def best_move(game, letter, max_depth   = 7 ):
-        def calculate(game, letter, depth):
-            board_id = Strategy.get_board_id(game.board)
-            if Strategy.score.get(board_id) is not None:
-                return Strategy.score[board_id]
-            if game.current_winner == 'X':
-                Strategy.score[board_id] = 1
-                return 1
-            if game.current_winner == 'O':
-                Strategy.score[board_id] = -1
-                return -1
-            if len(game.available_moves()) == 0:
-                Strategy.score[board_id] = 0
-                return 0
-            if max_depth == depth:
-                return 0
-            board_t = board_id
-            if letter == 'X':
-                Strategy.score[board_t] = -2
-            else:
-                Strategy.score[board_t] = 2
+        if maximizing_player:
+            max_eval = float('-inf')
             for move in game.available_moves():
                 board = copy.deepcopy(game)
                 board.make_move(move, letter)
-                if letter == 'X':
-                    if calculate(board, 'O', depth+1) > Strategy.score[board_t]:
-                        Strategy.score[board_t] = calculate(board, 'O', depth+1)
-                else:
-                    if calculate(board, 'X', depth+1) < Strategy.score[board_t]:
-                        Strategy.score[board_t] = calculate(board, 'X', depth+1)
-            return Strategy.score[board_t]
-        
-        calculate(game, letter, 0)
-        
+                eval = Strategy.best_move(board, letter, depth - 1, alpha, beta, False)
+                max_eval = max(max_eval, eval)
+                alpha = max(alpha, eval)
+                if beta <= alpha:
+                    break
+            return max_eval
+        else:
+            min_eval = float('inf')
+            for move in game.available_moves():
+                board = copy.deepcopy(game)
+                board.make_move(move, 'O' if letter == 'X' else 'X')
+                eval = Strategy.best_move(board, letter, depth - 1, alpha, beta, True)
+                min_eval = min(min_eval, eval)
+                beta = min(beta, eval)
+                if beta <= alpha:
+                    break
+            return min_eval
+
     @staticmethod
     def get_move(game, letter):
-        depth = 5
-        opponent = 'O' if letter == 'X' else 'X'
-        for move in game.available_moves():
-            board = copy.deepcopy(game)
-            board.make_move(move, letter)
-            Strategy.best_move(board, opponent, depth   )
-        Strategy.best_move(game, letter, depth)
+        # Uses depth 5 for standard minimax
+        best_score = float('-inf')
         best_moves = []
         for move in game.available_moves():
             board = copy.deepcopy(game)
             board.make_move(move, letter)
-            Strategy.best_move(board, opponent, depth)
-            if Strategy.score[tuple(Strategy.get_board_id(board.board))] == Strategy.score[tuple(Strategy.get_board_id(game.board))]:
+            move_score = Strategy.best_move(board, letter, 5, float('-inf'), float('inf'), False)
+            if move_score > best_score:
+                best_score = move_score
+                best_moves = [move]
+            elif move_score == best_score:
                 best_moves.append(move)
-        if len(best_moves) == 0:
-            return random.choice(game.available_moves())
-        return random.choice(best_moves)
-    
-    score_cpu = dict()
+        return random.choice(best_moves) if best_moves else random.choice(game.available_moves())
 
     @staticmethod
     def best_move_cpu(game, letter):
-        def minimax(game, depth, alpha, beta, maximizing_player):
-            board_id = Strategy.get_board_id(game.board)
-            if board_id in Strategy.score_cpu:
-                return Strategy.score_cpu[board_id]
-
-            if game.current_winner == letter:
-                return 1
-            elif game.current_winner == ('O' if letter == 'X' else 'X'):
-                return -1
-            elif not game.available_moves() or depth == 0:
-                return 0
-
-            if maximizing_player:
-                max_eval = float('-inf')
-                for move in game.available_moves():
-                    board = copy.deepcopy(game)
-                    board.make_move(move, letter)
-                    eval = minimax(board, depth - 1, alpha, beta, False)
-                    max_eval = max(max_eval, eval)
-                    alpha = max(alpha, eval)
-                    if beta <= alpha:
-                        break
-                Strategy.score_cpu[board_id] = max_eval
-                return max_eval
-            else:
-                min_eval = float('inf')
-                for move in game.available_moves():
-                    board = copy.deepcopy(game)
-                    board.make_move(move, 'O' if letter == 'X' else 'X')
-                    eval = minimax(board, depth - 1, alpha, beta, True)
-                    min_eval = min(min_eval, eval)
-                    beta = min(beta, eval)
-                    if beta <= alpha:
-                        break
-                Strategy.score_cpu[board_id] = min_eval
-                return min_eval
-
-        best_score_cpu = float('-inf')
-        best_move = None
+        # Uses depth 7 for alpha-beta
+        best_score = float('-inf')
+        best_moves = []
         for move in game.available_moves():
             board = copy.deepcopy(game)
             board.make_move(move, letter)
-            move_score_cpu = minimax(board, 5, float('-inf'), float('inf'), False)
-            if move_score_cpu > best_score_cpu:
-                best_score_cpu = move_score_cpu
-                best_move = move
-        return best_move
+            move_score = Strategy.best_move(board, letter, 7, float('-inf'), float('inf'), False)
+            if move_score > best_score:
+                best_score = move_score
+                best_moves = [move]
+            elif move_score == best_score:
+                best_moves.append(move)
+        return random.choice(best_moves) if best_moves else random.choice(game.available_moves())
 
     # ==========================================
     # REINFORCEMENT LEARNING SECTION (YOUR TURN)

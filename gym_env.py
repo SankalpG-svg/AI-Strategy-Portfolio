@@ -20,53 +20,41 @@ class ConnectFourGym(gym.Env):
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.game = ConnectFour()
-        
-        from strategy_c4 import Strategy
-        if hasattr(Strategy, '_target_col'):
-            delattr(Strategy, '_target_col')
-
-        # === NEW: MID-GAME CLUTTER ===
-        # 50% of the time, fast-forward the game by playing 2 to 6 safe random moves
-        if random.random() < 0.50:
-            for _ in range(random.randint(2, 6)):
-                # Pick random columns, alternating turns safely
-                if self.game.available_moves():
-                    col = random.choice(self.game.available_moves())
-                    self.game.make_move(col, 'X')
-                    if self.game.available_moves():
-                        col2 = random.choice(self.game.available_moves())
-                        self.game.make_move(col2, 'O')
-
-        # === MULTI-THREAT BOOT CAMP 2.0 ===
-        if random.random() < 0.30:
-            trap_type = random.choice(["vertical", "horizontal"])
             
-            if trap_type == "vertical" and self.game.available_moves():
-                threat_col = random.choice(self.game.available_moves())
-                # Only drop pieces if the column isn't full from the clutter
-                if self.game.board[0][threat_col] == ' ':
-                    self.game.make_move(threat_col, 'O')
-                    self.game.make_move(threat_col, 'O')
-                    self.game.make_move(threat_col, 'O')
-                    Strategy._target_col = threat_col 
-                
-            elif trap_type == "horizontal":
-                start_col = random.randint(1, 3)
-                # Quick safety check to ensure bottom row is empty here
-                if self.game.board[5][start_col] == ' ':
-                    self.game.make_move(start_col, 'O')
-                    self.game.make_move(start_col + 1, 'O')
-                    self.game.make_move(start_col + 2, 'O')
-                    Strategy._target_col = random.choice([start_col - 1, start_col + 3])
-                
-            return self._get_obs(), {}
-            
-        # Normal game start
+        # Normal game start. 50% of the time, the opponent (O) goes first.
         if random.choice([True, False]) and self.game.available_moves():
-            opp_move = random.choice(self.game.available_moves())
-            self.game.make_move(opp_move, 'O')
+            # Let the opponent make the first move
+            self._play_opponent_move()
             
         return self._get_obs(), {}
+
+    def _play_opponent_move(self):
+        if not self.game.available_moves():
+            return
+            
+        # Self-play: use the current RL model if available
+        if hasattr(self, 'rl_model') and self.rl_model is not None:
+            # Flip the board perspective: The model thinks it is 'X' (1.0)
+            board_matrix = np.zeros((6, 7), dtype=np.float32)
+            for r in range(6):
+                for c in range(7):
+                    piece = self.game.board[r][c]  
+                    if piece == 'O':
+                        board_matrix[r][c] = 1.0  # Opponent sees itself as 1
+                    elif piece == 'X':
+                        board_matrix[r][c] = -1.0 # Opponent sees us as -1
+            obs = np.expand_dims(board_matrix, axis=0)
+            
+            action, _ = self.rl_model.predict(obs, deterministic=False)
+            opp_move = int(action)
+            
+            # Fallback if the model predicts an invalid move
+            if opp_move not in self.game.available_moves():
+                opp_move = random.choice(self.game.available_moves())
+        else:
+            opp_move = random.choice(self.game.available_moves())
+            
+        self.game.make_move(opp_move, 'O')
 
     def _get_obs(self):
         # Convert board tokens into numbers: Empty=0, AI (X)=1, Opponent (O)=-1
@@ -94,26 +82,8 @@ class ConnectFourGym(gym.Env):
         elif not self.game.available_moves():
             return self._get_obs(), 0.0, True, False, {}
 
-        # === THE RUTHLESS PUNISHER CURRICULUM ===
-        roll = random.randint(1, 100)
-        
-        if roll <= 50:
-            # 50% Minimax: The elite endgame punisher. If AI ignores defense, it dies.
-            opp_move = Strategy.best_move_cpu(self.game, 'O')
-            
-        elif roll <= 80:
-            # 30% Sankalp_2: A highly aggressive intermediate bot.
-            opp_move = Strategy.sankalp_2(self.game, 'O')
-            
-        else:
-            # 20% Column Stacker: Keeps the AI paranoid about vertical threats.
-            opp_move = Strategy.column_stacker(self.game, 'O')
-
-        # Fallback for safety
-        if opp_move not in self.game.available_moves():
-            opp_move = random.choice(self.game.available_moves())
-
-        self.game.make_move(opp_move, 'O')
+        # === PURE SELF-PLAY ===
+        self._play_opponent_move()
 
         if self.game.current_winner == 'O':
             return self._get_obs(), -1.0, True, False, {}  
