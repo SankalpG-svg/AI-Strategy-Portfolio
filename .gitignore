@@ -1,0 +1,13 @@
+.venv/
+venv/
+.vscode/
+.cph/
+__pycache__/
+*.pyc
+*.pyo
+*.zip
+models/
+tensorboard_logs/
+tempCodeRunnerFile.py
+.pytest_cache/
+.mypy_cache/
