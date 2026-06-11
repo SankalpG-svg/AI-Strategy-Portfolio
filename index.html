@@ -115,6 +115,8 @@
             <div class="controls">
                 <button class="back-btn" onclick="showView('menu')">← Back</button>
                 <select id="strategy-c4">
+                    <option value="THE FINAL BOSS CNN">THE FINAL BOSS CNN</option>
+                    <option value="RL">Reinforcement Learning</option>
                     <option value="alphabeta">Unbeatable (Alpha-Beta Pruning)</option>
                     <option value="minimax">Standard Minimax</option>
                     <option value="random">Random Mover</option>
@@ -191,7 +193,7 @@
             const strategy = document.getElementById('strategy-ttt').value;
             const status = document.getElementById('status-ttt');
             try {
-                const res = await fetch('https://ai-strategy-portfolio-production.up.railway.app/get_ttt_move', {
+                const res = await fetch('/get_ttt_move', {
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ board: tttBoard, ai_letter: aiLetter, strategy: strategy })
@@ -272,7 +274,7 @@
             const strategy = document.getElementById('strategy-c4').value;
             const status = document.getElementById('status-c4');
             try {
-                const res = await fetch('https://ai-strategy-portfolio-production.up.railway.app/get_c4_move', {
+                const res = await fetch('/get_c4_move', {
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ board: c4Board, ai_letter: aiLetter, strategy: strategy })

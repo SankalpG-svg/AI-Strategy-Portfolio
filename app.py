@@ -69,7 +69,9 @@ def get_c4_move(state: C4GameState):
             return {"error": "Game already over"}
 
     strategy_map = {
-        "random": C4Strategy.random_strategy,
+        "THE FINAL BOSS CNN": C4Strategy.cnn_strategy,
+        "RL": C4Strategy.RL,
+        "random": C4Strategy.random_opstrategy,
         "minimax": C4Strategy.get_move,
         "alphabeta": C4Strategy.best_move_cpu
     }

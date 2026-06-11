@@ -1,5 +1,6 @@
 import copy
-from tic_tac_toe import TicTacToe
+from connect_four import ConnectFour
+from strategy_c4 import Strategy
 
 class Duel:
     def __init__(self, strategy1, strategy2):
@@ -8,7 +9,7 @@ class Duel:
         self.results = {'X': 0, 'O': 0, 'Draw': 0}
 
     def play_game(self):
-        game = TicTacToe()
+        game = ConnectFour()
         strategies = {'X': self.strategy1, 'O': self.strategy2}
         letter = 'X'
         while game.empty_squares():
