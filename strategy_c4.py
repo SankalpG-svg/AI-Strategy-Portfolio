@@ -177,6 +177,193 @@ class Strategy:
         return random.choice(best_moves)
     
     score_cpu = dict()
+    @staticmethod
+    @staticmethod
+    def kaggle_minimax(game, letter, depth=5):
+        """
+        The master entry point for the Kaggle-style Minimax algorithm with Alpha-Beta Pruning.
+        Call this in your env with: Strategy.kaggle_minimax(self.game, 'O')
+        """
+        import numpy as np
+        import math
+        import random
+
+        # 1. Translate the board to numbers for faster math (Empty=0, AI=1, Opp=2)
+        mark = 1 if letter == 'X' else 2
+        grid = np.zeros((6, 7), dtype=int)
+        for r in range(6):
+            for c in range(7):
+                if game.board[r][c] == 'X':
+                    grid[r][c] = 1 if mark == 1 else 2
+                elif game.board[r][c] == 'O':
+                    grid[r][c] = 2 if mark == 1 else 1
+
+        valid_moves = [c for c in range(7) if grid[0][c] == 0]
+        if not valid_moves:
+            return random.choice(game.available_moves())
+
+        best_score = -math.inf
+        best_col = random.choice(valid_moves)
+        
+        # Initialize Alpha and Beta
+        alpha = -math.inf
+        beta = math.inf
+
+        for col in valid_moves:
+            # Simulate dropping the piece
+            next_grid = Strategy._minimax_drop_piece(grid, col, mark)
+            # Call the recursive minimax with alpha and beta
+            score = Strategy._minimax_recursive(next_grid, depth - 1, False, mark, alpha, beta)
+            
+            if score > best_score:
+                best_score = score
+                best_col = col
+                
+            # Update alpha
+            alpha = max(alpha, best_score)
+
+        return best_col
+
+    # ==========================================
+    # MINIMAX HELPER FUNCTIONS
+    # ==========================================
+
+    @staticmethod
+    def _minimax_recursive(node, depth, maximizingPlayer, mark, alpha, beta):
+        import numpy as np
+        import math
+        
+        is_terminal = Strategy._is_terminal_node(node)
+        valid_moves = [c for c in range(7) if node[0][c] == 0]
+        
+        if depth == 0 or is_terminal:
+            return Strategy._get_heuristic(node, mark)
+            
+        if maximizingPlayer:
+            value = -math.inf
+            for col in valid_moves:
+                child = Strategy._minimax_drop_piece(node, col, mark)
+                value = max(value, Strategy._minimax_recursive(child, depth - 1, False, mark, alpha, beta))
+                
+                # Update Alpha
+                alpha = max(alpha, value)
+                
+                # ALPHA-BETA PRUNING: Cut off the branch if it's useless
+                if alpha >= beta:
+                    break
+            return value
+        else:
+            value = math.inf
+            # Opponent's mark is the opposite of ours
+            opp_mark = 1 if mark == 2 else 2
+            for col in valid_moves:
+                child = Strategy._minimax_drop_piece(node, col, opp_mark)
+                value = min(value, Strategy._minimax_recursive(child, depth - 1, True, mark, alpha, beta))
+                
+                # Update Beta
+                beta = min(beta, value)
+                
+                # ALPHA-BETA PRUNING: Cut off the branch if it's useless
+                if beta <= alpha:
+                    break
+            return value
+
+    @staticmethod
+    def _minimax_drop_piece(grid, col, piece):
+        """Simulates dropping a piece without altering the real game board."""
+        next_grid = grid.copy()
+        for row in range(5, -1, -1):
+            if next_grid[row][col] == 0:
+                next_grid[row][col] = piece
+                break
+        return next_grid
+
+    @staticmethod
+    def _is_terminal_window(window):
+        return window.count(1) == 4 or window.count(2) == 4
+
+    @staticmethod
+    def _is_terminal_node(grid):
+        """Checks if the game has ended (Win or Draw)."""
+        # Draw
+        if list(grid[0, :]).count(0) == 0:
+            return True
+            
+        # Horizontal
+        for row in range(6):
+            for col in range(7 - 3):
+                window = list(grid[row, col:col+4])
+                if Strategy._is_terminal_window(window):
+                    return True
+        # Vertical
+        for row in range(6 - 3):
+            for col in range(7):
+                window = list(grid[row:row+4, col])
+                if Strategy._is_terminal_window(window):
+                    return True
+        # Positive Diagonal
+        for row in range(6 - 3):
+            for col in range(7 - 3):
+                window = list(grid[range(row, row+4), range(col, col+4)])
+                if Strategy._is_terminal_window(window):
+                    return True
+        # Negative Diagonal
+        for row in range(3, 6):
+            for col in range(7 - 3):
+                window = list(grid[range(row, row-4, -1), range(col, col+4)])
+                if Strategy._is_terminal_window(window):
+                    return True
+        return False
+
+    @staticmethod
+    def _check_window(window, num_discs, piece):
+        """Helper to check if a window matches the exact piece count and empty spaces."""
+        return window.count(piece) == num_discs and window.count(0) == 4 - num_discs
+
+    @staticmethod
+    def _count_windows(grid, num_discs, piece):
+        """Scans the board and counts all valid windows for a specific piece."""
+        num_windows = 0
+        # horizontal
+        for row in range(6):
+            for col in range(7 - 3):
+                window = list(grid[row, col:col+4])
+                if Strategy._check_window(window, num_discs, piece):
+                    num_windows += 1
+        # vertical
+        for row in range(6 - 3):
+            for col in range(7):
+                window = list(grid[row:row+4, col])
+                if Strategy._check_window(window, num_discs, piece):
+                    num_windows += 1
+        # positive diagonal
+        for row in range(6 - 3):
+            for col in range(7 - 3):
+                window = list(grid[range(row, row+4), range(col, col+4)])
+                if Strategy._check_window(window, num_discs, piece):
+                    num_windows += 1
+        # negative diagonal
+        for row in range(3, 6):
+            for col in range(7 - 3):
+                window = list(grid[range(row, row-4, -1), range(col, col+4)])
+                if Strategy._check_window(window, num_discs, piece):
+                    num_windows += 1
+        return num_windows
+
+    @staticmethod
+    def _get_heuristic(grid, mark):
+        """
+        The Upgraded Brain: Scores the board using window counts.
+        """
+        opp_mark = 1 if mark == 2 else 2
+        
+        num_threes = Strategy._count_windows(grid, 3, mark)
+        num_fours = Strategy._count_windows(grid, 4, mark)
+        num_threes_opp = Strategy._count_windows(grid, 3, opp_mark)
+        
+        # +1,000,000 for a win, -100 for an opponent threat
+        score = num_threes - (100 * num_threes_opp) + (1000000 * num_fours)
+        return score
 
     @staticmethod
     def best_move_cpu(game, letter):

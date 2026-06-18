@@ -41,30 +41,50 @@ policy_kwargs = dict(
     features_extractor_class=CustomCNN,
 )
 
-# 3. Create backup folders
-os.makedirs("./models/", exist_ok=True)
+
+# 1. Direct fix for your Windows TensorBoard locking issue
+os.makedirs("./tensorboard_logs/", exist_ok=True)
+
+# 2. Load the previous model to act as the self-play opponent
+best_model_path = "custom_connect4_cnn.zip" # update with your actual checkpoint file name
+opp_model = None
+
+if os.path.exists(best_model_path):
+    print(f"--- Loading {best_model_path} for Self-Play Curriculum ---")
+    opp_model = PPO.load(best_model_path)
+
+# 3. Instantiate environment with the self-play opponent
+env = ConnectFourGym(opponent_model=opp_model)
+
+# 4. Define or Load the Training Model
+if opp_model is not None:
+    model = PPO.load(
+        best_model_path, 
+        env=env, 
+        tensorboard_log="./tensorboard_logs/",
+        custom_objects={
+            "gamma": 0.95,
+            "learning_rate": 3e-4
+        }
+    )
+else:
+    # Hyperparameter tuning to stop lazy behaviors
+    model = PPO(
+        "CnnPolicy", 
+        env, 
+        verbose=1, 
+        tensorboard_log="./tensorboard_logs/",
+        gamma=0.95,       # Lower gamma pushes the model to value immediate wins over future wins
+        learning_rate=3e-4
+    )
+
 checkpoint_callback = CheckpointCallback(
-    save_freq=50_000,
-    save_path="./models/",
-    name_prefix="rl_kaggle_cnn_backup"
+    save_freq=20000, 
+    save_path="./checkpoints/", 
+    name_prefix="c4_ppo_model"
 )
 
-# 4. Initialize and Run
-print("Starting environment with spatial channel layout...")
-env = ConnectFourGym()
-
-# COMPLETELY DELETED THE PPO(...) CREATION BLOCK
-
-print("Waking up the 185k Master Brain...")
-# LOAD THE BRAIN AND TELL IT WHERE TO DRAW GRAPHS SIMULTaneously
-model = PPO.load(
-    "custom_connect4_cnn", 
-    env=env,
-    tensorboard_log="./tensorboard_logs/"  # <--- CRITICAL FOR TENSORBOARD
-)
-
-print("Beginning Multi-Threat & Mid-Game learning...")
-model.learn(total_timesteps=100000, callback=checkpoint_callback)
-
-print("Saving the true spatial master model...")
+# 5. Run the Bake
+print("Starting training session...")
+model.learn(total_timesteps=200000, callback=checkpoint_callback)
 model.save("custom_connect4_cnn")

@@ -7,9 +7,9 @@ if __name__ == "__main__":
     print("Connect Four Duel!")
     
     # # Define strategies
-    player1 = Strategy.best_move_cpu # Replace with your custom strategy
+    player1 = Strategy.manual_strategy # Replace with your custom strategy
     # # Replace with your custom strategy
-    player2 = Strategy.manual_strategy  # Replace with your custom strategy
+    player2 = Strategy.cnn_strategy # Replace with your custom strategy
     # # Run duels
     duel = Duel(player1, player2)
                 

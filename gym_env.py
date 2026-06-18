@@ -6,7 +6,7 @@ from connect_four import ConnectFour
 from strategy_c4 import Strategy
 
 class ConnectFourGym(gym.Env):
-    def __init__(self):
+    def __init__(self, opponent_model=None):
         super(ConnectFourGym, self).__init__()
         self.game = ConnectFour()
         self.action_space = spaces.Discrete(7)
@@ -16,20 +16,19 @@ class ConnectFourGym(gym.Env):
             shape=(1, 6, 7), 
             dtype=np.float32
         )
+        # Self-play infrastructure: allows passing a trained PPO model as an opponent
+        self.opponent_model = opponent_model
 
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
         self.game = ConnectFour()
         
-        from strategy_c4 import Strategy
         if hasattr(Strategy, '_target_col'):
             delattr(Strategy, '_target_col')
 
-        # === NEW: MID-GAME CLUTTER ===
-        # 50% of the time, fast-forward the game by playing 2 to 6 safe random moves
+        # === MID-GAME CLUTTER ===
         if random.random() < 0.50:
             for _ in range(random.randint(2, 6)):
-                # Pick random columns, alternating turns safely
                 if self.game.available_moves():
                     col = random.choice(self.game.available_moves())
                     self.game.make_move(col, 'X')
@@ -43,7 +42,6 @@ class ConnectFourGym(gym.Env):
             
             if trap_type == "vertical" and self.game.available_moves():
                 threat_col = random.choice(self.game.available_moves())
-                # Only drop pieces if the column isn't full from the clutter
                 if self.game.board[0][threat_col] == ' ':
                     self.game.make_move(threat_col, 'O')
                     self.game.make_move(threat_col, 'O')
@@ -52,7 +50,6 @@ class ConnectFourGym(gym.Env):
                 
             elif trap_type == "horizontal":
                 start_col = random.randint(1, 3)
-                # Quick safety check to ensure bottom row is empty here
                 if self.game.board[5][start_col] == ' ':
                     self.game.make_move(start_col, 'O')
                     self.game.make_move(start_col + 1, 'O')
@@ -61,7 +58,6 @@ class ConnectFourGym(gym.Env):
                 
             return self._get_obs(), {}
             
-        # Normal game start
         if random.choice([True, False]) and self.game.available_moves():
             opp_move = random.choice(self.game.available_moves())
             self.game.make_move(opp_move, 'O')
@@ -69,7 +65,6 @@ class ConnectFourGym(gym.Env):
         return self._get_obs(), {}
 
     def _get_obs(self):
-        # Convert board tokens into numbers: Empty=0, AI (X)=1, Opponent (O)=-1
         board_matrix = np.zeros((6, 7), dtype=np.float32)
         for r in range(6):
             for c in range(7):
@@ -79,11 +74,11 @@ class ConnectFourGym(gym.Env):
                 elif piece == 'O':
                     board_matrix[r][c] = -1.0
                     
-        # Add the channel dimension so the shape becomes (1, 6, 7)
         return np.expand_dims(board_matrix, axis=0)
 
     def step(self, action):
         if action not in self.game.available_moves():
+            # Heavy penalty for illegal moves
             return self._get_obs(), -10.0, True, False, {}
 
         # 1. The AI (X) plays its turn
@@ -94,30 +89,38 @@ class ConnectFourGym(gym.Env):
         elif not self.game.available_moves():
             return self._get_obs(), 0.0, True, False, {}
 
-        # === THE RUTHLESS PUNISHER CURRICULUM ===
+        # 2. Opponent Selection Logic (Curriculum)
         roll = random.randint(1, 100)
         
-        if roll <= 50:
-            # 50% Minimax: The elite endgame punisher. If AI ignores defense, it dies.
-            opp_move = Strategy.best_move_cpu(self.game, 'O')
-            
-        elif roll <= 80:
-            # 30% Sankalp_2: A highly aggressive intermediate bot.
-            opp_move = Strategy.sankalp_2(self.game, 'O')
-            
+        # If a self-play model is provided, use it 40% of the time to counter human style traps
+        if self.opponent_model is not None and roll <= 40:
+            # Predict expects an observation matching player 'O' perspective (flip the signs)
+            opp_obs = -self._get_obs() 
+            opp_move, _ = self.opponent_model.predict(opp_obs, deterministic=True)
+            opp_move = int(opp_move)
         else:
-            # 20% Column Stacker: Keeps the AI paranoid about vertical threats.
-            opp_move = Strategy.column_stacker(self.game, 'O')
+            # Algorithmic Bot Pool
+            sub_roll = random.randint(1, 100)
+            if sub_roll <= 60:
+                # Upgraded to your fast alpha-beta minimax bot (Depth 4)
+                opp_move = Strategy.kaggle_minimax(self.game, 'O', depth=4)
+            elif sub_roll <= 85:
+                opp_move = Strategy.sankalp_2(self.game, 'O')
+            else:
+                opp_move = Strategy.column_stacker(self.game, 'O')
 
-        # Fallback for safety
+        # Fallback safety
         if opp_move not in self.game.available_moves():
             opp_move = random.choice(self.game.available_moves())
 
+        # 3. Opponent plays its turn
         self.game.make_move(opp_move, 'O')
 
         if self.game.current_winner == 'O':
-            return self._get_obs(), -1.0, True, False, {}  
+            return self._get_obs(), -2.5, True, False, {}  
         elif not self.game.available_moves():
             return self._get_obs(), 0.0, True, False, {}
 
-        return self._get_obs(), 0.0, False, False, {}
+        # === REWARD SHAPING: Step Penalty ===
+        # Small penalty every turn encourages finishing the game as fast as possible
+        return self._get_obs(), -0.02, False, False, {}
